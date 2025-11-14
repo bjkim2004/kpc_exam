@@ -34,11 +34,11 @@ export default function ExamSidebar({ isOpen, onClose }: ExamSidebarProps) {
   // Early return if questions not loaded
   if (!questions || questions.length === 0) {
     return (
-      <aside className="fixed top-0 left-0 h-full w-56 bg-white border-r border-neutral-300 shadow-elevation-4 z-50">
+      <aside className="fixed top-0 left-0 h-full w-48 bg-white border-r border-neutral-300 shadow-elevation-4 z-50">
         <div className="bg-neutral-900 text-white px-3 py-2.5">
           <h2 className="text-sm font-bold">문항 목록</h2>
         </div>
-        <div className="p-4 flex items-center justify-center h-[calc(100%-3rem)]">
+        <div className="p-3 flex items-center justify-center h-[calc(100%-3rem)]">
           <div className="text-xs text-neutral-500">문항을 불러오는 중...</div>
         </div>
       </aside>
@@ -58,7 +58,7 @@ export default function ExamSidebar({ isOpen, onClose }: ExamSidebarProps) {
       {/* Sidebar Panel - Compact slide panel */}
       <aside 
         className={`
-          fixed top-0 left-0 h-full w-56
+          fixed top-0 left-0 h-full w-48
           bg-white border-r border-neutral-300 
           overflow-y-auto shadow-elevation-4
           z-50
@@ -86,8 +86,8 @@ export default function ExamSidebar({ isOpen, onClose }: ExamSidebarProps) {
         </div>
 
         {/* Question list - centered */}
-        <div className="p-3 flex flex-col items-center">
-          <div className="w-full max-w-[180px] space-y-2">
+        <div className="p-2.5 flex flex-col items-center">
+          <div className="w-full space-y-2">
             {questions.map((question, idx) => {
               // 로컬 답변 (아직 저장 안 됨) 또는 서버에 저장된 답변 확인
               const hasLocalAnswer = answers[question.id.toString()] !== undefined && 
@@ -101,7 +101,7 @@ export default function ExamSidebar({ isOpen, onClose }: ExamSidebarProps) {
                 <button
                   key={question.id}
                   onClick={() => handleQuestionClick(idx)}
-                  className={`w-full px-3 py-2.5 rounded-lg text-xs transition-all relative ${
+                  className={`w-full px-2.5 py-2 rounded-lg text-xs transition-all relative ${
                     isCurrent
                       ? 'bg-neutral-900 text-white font-bold shadow-lg ring-2 ring-neutral-700 ring-offset-2'
                       : hasAnswer
@@ -110,9 +110,9 @@ export default function ExamSidebar({ isOpen, onClose }: ExamSidebarProps) {
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       {/* 상태 아이콘 */}
-                      <span className={`text-lg font-bold flex-shrink-0 ${
+                      <span className={`text-base font-bold flex-shrink-0 ${
                         isCurrent 
                           ? 'text-white' 
                           : hasAnswer 
