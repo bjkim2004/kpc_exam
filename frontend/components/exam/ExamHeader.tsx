@@ -10,8 +10,9 @@ interface ExamHeaderProps {
 
 export default function ExamHeader({ onMenuClick }: ExamHeaderProps) {
   const user = useAuthStore((state) => state.user);
-  const { timeRemaining, currentQuestionIndex, questions, updateTimer, answers } = useExamStore();
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
+  const { timeRemaining, currentQuestionIndex, questions, updateTimer, answers, saveAnswer } = useExamStore();
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -23,15 +24,31 @@ export default function ExamHeader({ onMenuClick }: ExamHeaderProps) {
     return () => clearInterval(timer);
   }, [timeRemaining, updateTimer]);
 
-  // Auto-save status simulation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSaveStatus('saving');
-      setTimeout(() => setSaveStatus('saved'), 500);
-    }, 3000);
+  // 저장 버튼 클릭 핸들러
+  const handleSave = async () => {
+    if (!questions || questions.length === 0) return;
+    
+    const currentQuestion = questions[currentQuestionIndex];
+    if (!currentQuestion) return;
 
-    return () => clearInterval(interval);
-  }, []);
+    setShowSaveModal(true);
+    setIsSaving(true);
+
+    try {
+      await saveAnswer(currentQuestion.id.toString());
+      // 저장 성공 후 1초간 표시
+      setTimeout(() => {
+        setIsSaving(false);
+        setTimeout(() => {
+          setShowSaveModal(false);
+        }, 500);
+      }, 1000);
+    } catch (error) {
+      setIsSaving(false);
+      setShowSaveModal(false);
+      alert('저장에 실패했습니다. 다시 시도해주세요.');
+    }
+  };
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -111,7 +128,7 @@ export default function ExamHeader({ onMenuClick }: ExamHeaderProps) {
         {getProgressDots()}
       </div>
 
-      {/* Right: Timer, Save Status, User */}
+      {/* Right: Timer, Save Button, User */}
       <div className="flex items-center gap-3">
         {/* Timer - More Prominent */}
         <div
@@ -127,22 +144,16 @@ export default function ExamHeader({ onMenuClick }: ExamHeaderProps) {
           <span className="tabular-nums">{formatTime(timeRemaining)}</span>
         </div>
 
-        {/* Save Status - Compact */}
-        <div className="flex items-center gap-1.5 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg">
-          {saveStatus === 'saved' ? (
-            <>
-              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="text-green-400">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="text-xs font-medium text-green-400">저장완료</span>
-            </>
-          ) : (
-            <>
-              <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-xs font-medium text-white">저장중</span>
-            </>
-          )}
-        </div>
+        {/* Save Button */}
+        <button
+          onClick={handleSave}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold text-sm rounded-lg border-2 border-green-500 transition-all shadow-sm hover:shadow-md"
+        >
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+          </svg>
+          <span>저장</span>
+        </button>
 
         {/* User Card - Compact & Elegant */}
         <div className="flex items-center gap-2 px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg">
@@ -154,6 +165,37 @@ export default function ExamHeader({ onMenuClick }: ExamHeaderProps) {
           <span className="text-sm font-bold text-white tabular-nums">{user?.exam_number}</span>
         </div>
       </div>
+
+      {/* Save Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 bg-neutral-800/60 backdrop-blur-sm flex items-center justify-center z-[100]">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm">
+            <div className="exam-panel-header exam-panel-header-primary rounded-t-lg">
+              <span>💾</span>
+              <span>답안 저장</span>
+            </div>
+            <div className="p-6 flex flex-col items-center">
+              {isSaving ? (
+                <>
+                  <div className="w-16 h-16 border-4 border-neutral-200 border-t-green-600 rounded-full animate-spin mb-4"></div>
+                  <p className="text-base font-semibold text-neutral-900">저장 중입니다...</p>
+                  <p className="text-sm text-neutral-600 mt-1">잠시만 기다려주세요</p>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                    <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="text-green-600">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <p className="text-base font-semibold text-neutral-900">저장되었습니다!</p>
+                  <p className="text-sm text-neutral-600 mt-1">답안이 안전하게 저장되었습니다</p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
