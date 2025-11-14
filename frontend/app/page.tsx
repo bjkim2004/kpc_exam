@@ -57,7 +57,7 @@ export default function HomePage() {
 
   const questions = [
     { num: 1, title: 'Self-Attention 메커니즘', category: '역량 A', desc: 'Transformer 핵심 개념', type: '객관식', points: 10 },
-    { num: 2, title: 'AI 도구 특징 비교', category: '역럅 A', desc: 'ChatGPT, Claude, Gemini, DALL-E', type: '객관식', points: 15 },
+    { num: 2, title: 'AI 도구 특징 비교', category: '역량 A', desc: 'ChatGPT, Claude, Gemini, DALL-E', type: '객관식', points: 15 },
     { num: 3, title: '구조화된 프롬프트', category: '역량 B', desc: '고객 서비스 챗봇 설계', type: '서술형', points: 10 },
     { num: 4, title: 'Few-shot Learning', category: '역량 B', desc: '제품 리뷰 감정 분류', type: '서술형', points: 10 },
     { num: 5, title: '업무 자동화 시스템', category: '역량 B', desc: '주간 보고서 자동화', type: '실습형', points: 10 },
@@ -204,7 +204,7 @@ export default function HomePage() {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-neutral-900 font-bold flex-shrink-0">•</span>
-              <span>모든 답안은 <strong>자동으로 저장</strong>됩니다. 별도의 저장 버튼 클릭은 불필요합니다.</span>
+              <span>각 문항 작성 후 <strong>반드시 저장 버튼을 클릭</strong>하여 답안을 저장하세요. 저장하지 않으면 답안이 제출되지 않습니다.</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-neutral-900 font-bold flex-shrink-0">•</span>
