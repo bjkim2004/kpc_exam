@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
+        "https://kpc-frontend-6tjoxshz5a-du.a.run.app",
         "https://kpc-frontend-480497851489.asia-northeast3.run.app"
     ]
     

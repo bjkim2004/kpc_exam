@@ -88,7 +88,24 @@ export default function HomePage() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-100">
-        <div className="text-sm text-neutral-600">시스템을 준비하고 있습니다...</div>
+        <div className="flex flex-col items-center gap-5">
+          {/* 로딩 스피너 */}
+          <div className="w-14 h-14 border-4 border-neutral-200 border-t-blue-600 rounded-full animate-spin"></div>
+          
+          {/* 진행 상태바 */}
+          <div className="w-72">
+            <div className="h-2.5 bg-neutral-200 rounded-full overflow-hidden shadow-inner">
+              <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full loading-progress-bar"></div>
+            </div>
+            <div className="flex justify-between mt-1.5 text-xs text-neutral-400">
+              <span>로딩 중...</span>
+              <span>잠시만 기다려주세요</span>
+            </div>
+          </div>
+          
+          {/* 메시지 */}
+          <div className="text-sm text-neutral-700 font-semibold mt-2">시스템을 준비하고 있습니다</div>
+        </div>
       </div>
     );
   }
@@ -142,12 +159,13 @@ export default function HomePage() {
   const passingScore = 70; // 합격 기준 점수
 
   // 역량별 문항 및 점수 계산
-  const competencyStats = questions.reduce((acc, q) => {
+  const competencyStats = questions.reduce((acc, q, index) => {
     const comp = q.competency || '기타';
     if (!acc[comp]) {
       acc[comp] = { questions: [], points: 0 };
     }
-    acc[comp].questions.push(q.question_number);
+    // 시험 문항 번호 (1, 2, 3...)
+    acc[comp].questions.push(index + 1);
     acc[comp].points += q.points;
     return acc;
   }, {} as Record<string, { questions: number[]; points: number }>);
@@ -259,14 +277,14 @@ export default function HomePage() {
             <div className="text-center py-8 text-neutral-600">등록된 문항이 없습니다.</div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {questions.map((q) => (
+              {questions.map((q, index) => (
                 <div
                   key={q.id}
                   className="flex flex-col p-3 bg-neutral-50 border border-neutral-300 rounded hover:border-neutral-500 hover:shadow-elevation-1 transition-all"
                 >
                   <div className="flex items-start gap-3 mb-2">
                     <div className="w-9 h-9 bg-neutral-900 text-white rounded flex items-center justify-center font-bold text-base flex-shrink-0">
-                      {q.question_number}
+                      {index + 1}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-neutral-900 text-base">{q.title}</div>

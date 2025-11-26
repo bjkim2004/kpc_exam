@@ -55,6 +55,32 @@ body {
   animation: timer-warning 0.8s ease-in-out infinite;
 }
 
+/* Loading progress bar animation */
+@keyframes loading-progress {
+  0% {
+    width: 0%;
+  }
+  20% {
+    width: 20%;
+  }
+  40% {
+    width: 45%;
+  }
+  60% {
+    width: 65%;
+  }
+  80% {
+    width: 85%;
+  }
+  100% {
+    width: 95%;
+  }
+}
+
+.loading-progress-bar {
+  animation: loading-progress 2s ease-out forwards;
+}
+
 /* Button styles - Sophisticated monochrome */
 .btn-primary {
   border-radius: 8px;

@@ -1,21 +1,46 @@
 import openai
 from anthropic import Anthropic
-import google.generativeai as genai
 from typing import Dict, Any
 from app.core.config import settings
+
+# Safely import google.generativeai
+try:
+    import google.generativeai as genai
+    GENAI_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: google.generativeai not available: {e}")
+    genai = None
+    GENAI_AVAILABLE = False
 
 
 class AIService:
     def __init__(self):
-        self.openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_API_KEY else None
-        self.anthropic_client = Anthropic(api_key=settings.ANTHROPIC_API_KEY) if settings.ANTHROPIC_API_KEY else None
+        # Initialize OpenAI client safely
+        self.openai_client = None
+        if settings.OPENAI_API_KEY:
+            try:
+                self.openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+            except Exception as e:
+                print(f"Warning: Failed to initialize OpenAI client: {e}")
+        
+        # Initialize Anthropic client safely
+        self.anthropic_client = None
+        if settings.ANTHROPIC_API_KEY:
+            try:
+                self.anthropic_client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+            except Exception as e:
+                print(f"Warning: Failed to initialize Anthropic client: {e}")
         
         # Initialize Gemini
-        if settings.GEMINI_API_KEY:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            self.gemini_client = genai.GenerativeModel('gemini-2.0-flash')
-        else:
-            self.gemini_client = None
+        self.gemini_client = None
+        if settings.GEMINI_API_KEY and GENAI_AVAILABLE and genai:
+            try:
+                genai.configure(api_key=settings.GEMINI_API_KEY)
+                self.gemini_client = genai.GenerativeModel('gemini-2.5-pro')
+            except Exception as e:
+                print(f"Warning: Failed to initialize Gemini client: {e}")
+        elif settings.GEMINI_API_KEY and not GENAI_AVAILABLE:
+            print(f"Warning: Gemini API key provided but google.generativeai package not available")
         
         self.default_provider = settings.DEFAULT_AI_PROVIDER
     
@@ -68,19 +93,35 @@ class AIService:
     async def gemini(self, prompt: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """Call Google Gemini API"""
         if not self.gemini_client:
+            if not GENAI_AVAILABLE:
+                raise ValueError("google.generativeai package not available. Please install it with: pip install google-generativeai")
             raise ValueError("Gemini API key not configured")
         
         try:
             response = self.gemini_client.generate_content(prompt)
             
+            # Handle multiple parts in response
+            response_text = ""
+            if hasattr(response, 'parts') and response.parts:
+                # Multiple parts - concatenate all text parts
+                response_text = "".join(part.text for part in response.parts if hasattr(part, 'text'))
+            elif hasattr(response, 'text'):
+                # Single part - use text directly
+                response_text = response.text
+            elif hasattr(response, 'candidates') and response.candidates:
+                # Fallback to candidates
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                    response_text = "".join(part.text for part in candidate.content.parts if hasattr(part, 'text'))
+            
             # Estimate tokens (Gemini doesn't provide direct token count in response)
             # Rough estimation: 1 token ≈ 4 characters
-            estimated_tokens = (len(prompt) + len(response.text)) // 4
+            estimated_tokens = (len(prompt) + len(response_text)) // 4
             
             return {
-                "response": response.text,
+                "response": response_text,
                 "tokens_used": estimated_tokens,
-                "model": "gemini-2.0-flash"
+                "model": "gemini-2.5-pro"
             }
         except Exception as e:
             raise Exception(f"Gemini API error: {str(e)}")
@@ -138,6 +179,8 @@ Be precise and cite specific concerns."""
             Dict containing generated question data
         """
         if not self.gemini_client:
+            if not GENAI_AVAILABLE:
+                raise ValueError("google.generativeai package not available. Please install it with: pip install google-generativeai")
             raise ValueError("Gemini API key not configured")
         
         # Map question types to Korean labels
@@ -327,7 +370,7 @@ Be precise and cite specific concerns."""
             return {
                 "question_data": question_data,
                 "tokens_used": estimated_tokens,
-                "model": "gemini-2.0-flash"
+                "model": "gemini-2.5-pro"
             }
             
         except Exception as e:

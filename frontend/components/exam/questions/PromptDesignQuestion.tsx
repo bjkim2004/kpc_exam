@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useExamStore } from '@/lib/stores/examStore';
 import apiClient from '@/lib/api/client';
+import { validatePrompt } from '@/lib/utils/promptValidator';
 
 interface Props {
   question: any;
@@ -42,6 +43,18 @@ export default function PromptDesignQuestion({ question }: Props) {
 
     if (usageCount >= 10) {
       alert('AI 사용 횟수 제한에 도달했습니다.');
+      return;
+    }
+
+    // 프롬프트 유사도 검사
+    const validation = validatePrompt(
+      prompt,
+      question.content,
+      question.question_content?.scenario
+    );
+    
+    if (!validation.isValid) {
+      alert(`⚠️ 프롬프트 제한\n\n${validation.reason}`);
       return;
     }
 
@@ -238,14 +251,14 @@ export default function PromptDesignQuestion({ question }: Props) {
                 </button>
               </div>
             </div>
-            <div className="flex flex-col h-[calc(100%-2.5rem)]">
+            <div className="flex flex-col h-[calc(100%-2.5rem)] p-3">
               <textarea
                 value={answerText}
                 onChange={(e) => handleAnswerChange(e.target.value)}
-                className="exam-textarea h-[200px] resize-none text-xs"
+                className="exam-textarea flex-1 resize-none text-xs"
                 placeholder="답안을 작성하세요..."
               />
-              <div className="px-4 py-2 bg-neutral-50 border-t border-neutral-200 flex justify-end items-center text-xs">
+              <div className="mt-auto pt-2 flex justify-end items-center text-xs">
                 <div className="exam-char-counter">
                   <span className="exam-char-counter-value">{answerText.length}</span> / 2000
                 </div>

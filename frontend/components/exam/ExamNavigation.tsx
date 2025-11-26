@@ -7,7 +7,7 @@ import { useExamStore } from '@/lib/stores/examStore';
 
 export default function ExamNavigation() {
   const router = useRouter();
-  const { currentQuestionIndex, questions, answers, saveAnswer, hasUnsavedChanges, goToQuestion } = useExamStore();
+  const { examId, currentQuestionIndex, questions, answers, saveAnswer, hasUnsavedChanges, goToQuestion } = useExamStore();
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -58,6 +58,11 @@ export default function ExamNavigation() {
   };
 
   const handleSave = async () => {
+    if (!examId) {
+      alert('시험이 시작되지 않았습니다. 메인 화면에서 시험을 시작해주세요.');
+      return;
+    }
+    
     if (!questions || questions.length === 0) return;
 
     const currentQuestion = questions[currentQuestionIndex];
@@ -194,7 +199,7 @@ export default function ExamNavigation() {
                   </p>
                 )}
                 <div className="flex flex-col gap-2">
-                  {hasAnswer && (
+                  {hasAnswer && examId && (
                     <button
                       onClick={async () => {
                         if (!questions || questions.length === 0) return;

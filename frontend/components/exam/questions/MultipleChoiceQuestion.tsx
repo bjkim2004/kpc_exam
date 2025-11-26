@@ -2,14 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { useExamStore } from '@/lib/stores/examStore';
+import apiClient from '@/lib/api/client';
+import { validatePrompt } from '@/lib/utils/promptValidator';
 
 interface Props {
   question: any;
 }
 
 export default function MultipleChoiceQuestion({ question }: Props) {
-  const { answers, setAnswer, questions, currentQuestionIndex } = useExamStore();
+  const { answers, setAnswer, questions, currentQuestionIndex, examId } = useExamStore();
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [prompt, setPrompt] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [usageCount, setUsageCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
   
   // 표시 번호 계산 (1, 2, 3...)
   const questionIndex = questions.findIndex(q => q.id === question.id);
@@ -24,6 +30,47 @@ export default function MultipleChoiceQuestion({ question }: Props) {
     setSelectedOption(optionNum);
     // 로컬 상태에만 저장 (헤더의 저장 버튼 클릭시 서버에 저장됨)
     setAnswer(question.id, { selectedOption: optionNum });
+  };
+
+  const handleAIRequest = async () => {
+    if (!prompt.trim()) {
+      alert('프롬프트를 입력하세요.');
+      return;
+    }
+
+    if (usageCount >= 10) {
+      alert('AI 사용 횟수 제한에 도달했습니다.');
+      return;
+    }
+
+    // 프롬프트 유사도 검사
+    const validation = validatePrompt(
+      prompt,
+      question.content,
+      question.question_content?.scenario
+    );
+    
+    if (!validation.isValid) {
+      alert(`⚠️ 프롬프트 제한\n\n${validation.reason}`);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await apiClient.post('/ai/gemini', {
+        exam_id: examId,
+        question_id: question.id,
+        prompt: prompt,
+        context: {}
+      });
+
+      setAiResponse(response.data.response);
+      setUsageCount((prev) => prev + 1);
+    } catch (error: any) {
+      alert(error.response?.data?.detail || 'AI 요청 실패');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const options = question.question_content?.options || [];
@@ -132,28 +179,62 @@ export default function MultipleChoiceQuestion({ question }: Props) {
           </div>
         </div>
 
-        {/* Right: Reference + Answer Summary */}
+        {/* Right: AI Tool + Answer Summary */}
         <div className="flex flex-col gap-3">
           
-          {/* Reference Panel */}
+          {/* AI Tool Section */}
           <div className="exam-panel flex-1">
-            <div className="exam-panel-header exam-panel-header-secondary">
-              <span>📚</span>
-              <span>참고 자료</span>
+            <div className="exam-panel-header exam-panel-header-primary">
+              <span>🤖</span>
+              <span className="text-sm font-bold">생성형 AI 선택</span>
+              <div className="flex gap-1.5 ml-3">
+                <span className="px-2.5 py-0.5 bg-white text-neutral-800 rounded text-xs font-bold">✨ Gemini</span>
+                <span className="px-2.5 py-0.5 bg-white/20 text-white/60 rounded text-xs">💬 GPT</span>
+                <span className="px-2.5 py-0.5 bg-white/20 text-white/60 rounded text-xs">🧠 Claude</span>
+              </div>
+              <div className="ml-auto px-2 py-0.5 bg-white/30 rounded text-xs font-semibold">
+                {usageCount}/10회
+              </div>
             </div>
-            <div className="exam-panel-content">
-              {question.question_content?.reference_materials ? (
-                <div className="exam-alert exam-alert-info">
-                  <div className="font-bold mb-1.5 text-xs">💡 개념 설명</div>
-                  <div className="text-xs leading-relaxed" dangerouslySetInnerHTML={{ 
-                    __html: question.question_content.reference_materials 
-                  }} />
+            
+            <div className="exam-panel-content flex flex-col gap-2.5">
+              {/* Prompt Input */}
+              <div className="w-full">
+                <h3 className="exam-section-title">프롬프트 입력</h3>
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  className="exam-textarea h-20 resize-none text-xs w-full"
+                  placeholder="AI에게 질문하세요..."
+                />
+                <div className="flex gap-1.5 mt-2">
+                  <button
+                    onClick={handleAIRequest}
+                    disabled={isLoading}
+                    className="exam-btn-primary text-xs"
+                  >
+                    {isLoading ? '요청 중...' : '전송 ↓'}
+                  </button>
+                  <button
+                    onClick={() => setPrompt('')}
+                    className="exam-btn-secondary text-xs"
+                  >
+                    지우기
+                  </button>
                 </div>
-              ) : (
-                <div className="bg-neutral-50 border border-dashed border-neutral-300 p-6 rounded text-center text-neutral-600 text-xs">
-                  별도의 참고 자료가 제공되지 않습니다.
+              </div>
+              
+              {/* AI Response */}
+              <div className="flex-1 flex flex-col min-h-0 w-full">
+                <h3 className="exam-section-title">AI 응답</h3>
+                <div className="flex-1 exam-input overflow-y-auto min-h-[80px] text-xs leading-relaxed w-full">
+                  {aiResponse ? (
+                    <div className="whitespace-pre-wrap">{aiResponse}</div>
+                  ) : (
+                    <span className="text-xs text-neutral-400 italic">AI 응답이 여기에 표시됩니다.</span>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
 

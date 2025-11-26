@@ -5,8 +5,6 @@ from typing import List
 from app.core.database import get_db
 from app.models.question import Question, QuestionContent
 from app.models.user import User
-from app.models.exam import Exam, ExamStatus
-from app.models.answer import Answer
 from app.schemas.question import QuestionResponse, QuestionCreate
 from app.api.endpoints.auth import get_current_user
 
@@ -26,13 +24,8 @@ async def get_all_questions(
     else:
         questions = db.query(Question).options(joinedload(Question.question_content)).filter(Question.is_active == 1).order_by(Question.question_number).all()
     
-    # 현재 사용자의 진행 중인 시험 찾기
-    current_exam = db.query(Exam).filter(
-        Exam.user_id == current_user.id,
-        Exam.status.in_([ExamStatus.NOT_STARTED, ExamStatus.IN_PROGRESS])
-    ).first()
-    
-    # 각 문항에 대한 답변 여부 확인
+    # 각 문항에 대해 is_answered는 항상 false로 반환
+    # 프론트엔드에서 현재 시험의 저장된 답변만 확인하여 업데이트
     question_responses = []
     for question in questions:
         question_dict = {
@@ -46,16 +39,8 @@ async def get_all_questions(
             "is_active": question.is_active,
             "competency": question.competency,
             "question_content": question.question_content,
-            "is_answered": False
+            "is_answered": False  # 항상 false로 반환, 프론트엔드에서 현재 시험 기준으로 업데이트
         }
-        
-        # 시험이 있고 답변이 제출되었는지 확인
-        if current_exam:
-            answer = db.query(Answer).filter(
-                Answer.exam_id == current_exam.id,
-                Answer.question_id == question.id
-            ).first()
-            question_dict["is_answered"] = answer is not None
         
         question_responses.append(QuestionResponse(**question_dict))
     

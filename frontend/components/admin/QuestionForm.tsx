@@ -106,11 +106,6 @@ export default function QuestionForm({ initialData, onSubmit, onCancel, isEdit =
               type="button"
               onClick={() => {
                 setFormData({ ...formData, competency: comp.value });
-                // 역량 변경 시 첫 번째 권장 유형으로 자동 설정
-                const availableTypes = questionTypesByCompetency[comp.value];
-                if (availableTypes && availableTypes.length > 0) {
-                  setFormData({ ...formData, competency: comp.value, type: availableTypes[0].value });
-                }
               }}
               className={`px-3 py-2 rounded-md border transition-all font-medium text-xs ${
                 formData.competency === comp.value
@@ -153,7 +148,7 @@ export default function QuestionForm({ initialData, onSubmit, onCancel, isEdit =
             >
               {getAvailableTypes().map((type) => (
                 <option key={type.value} value={type.value}>
-                  {type.label} {type.recommended ? '⭐' : ''}
+                  {type.label}
                 </option>
               ))}
             </select>
