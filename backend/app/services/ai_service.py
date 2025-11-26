@@ -31,12 +31,27 @@ class AIService:
             except Exception as e:
                 print(f"Warning: Failed to initialize Anthropic client: {e}")
         
-        # Initialize Gemini
+        # Initialize Gemini with optimized settings for faster response
         self.gemini_client = None
         if settings.GEMINI_API_KEY and GENAI_AVAILABLE and genai:
             try:
                 genai.configure(api_key=settings.GEMINI_API_KEY)
-                self.gemini_client = genai.GenerativeModel('gemini-2.5-pro')
+                # Use gemini-2.5-flash for fast response with good quality
+                generation_config = genai.GenerationConfig(
+                    temperature=0.7,
+                    max_output_tokens=1024,  # Limit output for faster response
+                )
+                # Set safety settings using proper types for latest API
+                from google.generativeai.types import HarmCategory, HarmBlockThreshold
+                safety_settings = {
+                    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                }
+                self.gemini_client = genai.GenerativeModel(
+                    'models/gemini-2.5-flash-lite'  # Use full model path
+                )
             except Exception as e:
                 print(f"Warning: Failed to initialize Gemini client: {e}")
         elif settings.GEMINI_API_KEY and not GENAI_AVAILABLE:
@@ -98,33 +113,79 @@ class AIService:
             raise ValueError("Gemini API key not configured")
         
         try:
+            print(f"🤖 Sending prompt to Gemini (length: {len(prompt)})")
             response = self.gemini_client.generate_content(prompt)
+            print(f"🤖 Received Gemini response")
             
-            # Handle multiple parts in response
-            response_text = ""
-            if hasattr(response, 'parts') and response.parts:
-                # Multiple parts - concatenate all text parts
-                response_text = "".join(part.text for part in response.parts if hasattr(part, 'text'))
-            elif hasattr(response, 'text'):
-                # Single part - use text directly
-                response_text = response.text
-            elif hasattr(response, 'candidates') and response.candidates:
-                # Fallback to candidates
-                candidate = response.candidates[0]
-                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
-                    response_text = "".join(part.text for part in candidate.content.parts if hasattr(part, 'text'))
+            # Debug: Log response info
+            if hasattr(response, 'candidates') and response.candidates:
+                c = response.candidates[0]
+                if hasattr(c, 'finish_reason'):
+                    print(f"🔍 Finish reason: {c.finish_reason}")
             
-            # Estimate tokens (Gemini doesn't provide direct token count in response)
-            # Rough estimation: 1 token ≈ 4 characters
+            # Handle response safely - extract text from various response formats
+            response_text = self._extract_gemini_text(response)
+            
+            if not response_text:
+                # Check finish reason
+                finish_reason = "Unknown"
+                if hasattr(response, 'candidates') and response.candidates:
+                    c = response.candidates[0]
+                    if hasattr(c, 'finish_reason'):
+                        finish_reason = str(c.finish_reason)
+                raise ValueError(f"No text content. Finish reason: {finish_reason}")
+            
+            # Estimate tokens
             estimated_tokens = (len(prompt) + len(response_text)) // 4
             
             return {
                 "response": response_text,
                 "tokens_used": estimated_tokens,
-                "model": "gemini-2.5-pro"
+                "model": "gemini-2.5-flash-lite"
             }
         except Exception as e:
+            print(f"❌ Gemini API error: {str(e)}")
             raise Exception(f"Gemini API error: {str(e)}")
+    
+    def _extract_gemini_text(self, response) -> str:
+        """Safely extract text from Gemini response"""
+        # Method 1: Try candidates first (most reliable)
+        try:
+            if hasattr(response, 'candidates') and response.candidates:
+                for candidate in response.candidates:
+                    if hasattr(candidate, 'content') and candidate.content:
+                        if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                            texts = []
+                            for part in candidate.content.parts:
+                                if hasattr(part, 'text') and part.text:
+                                    texts.append(part.text)
+                            if texts:
+                                return "".join(texts)
+        except Exception as e:
+            print(f"⚠️ Error extracting from candidates: {e}")
+        
+        # Method 2: Try parts directly
+        try:
+            if hasattr(response, 'parts') and response.parts:
+                texts = []
+                for part in response.parts:
+                    if hasattr(part, 'text') and part.text:
+                        texts.append(part.text)
+                if texts:
+                    return "".join(texts)
+        except Exception as e:
+            print(f"⚠️ Error extracting from parts: {e}")
+        
+        # Method 3: Try text property (may raise exception internally)
+        try:
+            if hasattr(response, 'text'):
+                text = response.text
+                if text:
+                    return text
+        except Exception as e:
+            print(f"⚠️ Error extracting text property: {e}")
+        
+        return ""
     
     async def generate(self, prompt: str, provider: str = None, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -370,7 +431,7 @@ Be precise and cite specific concerns."""
             return {
                 "question_data": question_data,
                 "tokens_used": estimated_tokens,
-                "model": "gemini-2.5-pro"
+                "model": "gemini-2.5-flash-lite"
             }
             
         except Exception as e:
