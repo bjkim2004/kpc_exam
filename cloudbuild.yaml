@@ -17,7 +17,7 @@ steps:
       - '-t'
       - 'gcr.io/$PROJECT_ID/kpc-frontend'
       - '--build-arg'
-      - 'NEXT_PUBLIC_API_URL=https://kpc-backend-${_REGION}.run.app'
+      - 'NEXT_PUBLIC_API_URL=https://kpc-backend-6tjoxshz5a-du.a.run.app'
       - './frontend'
     id: 'build-frontend'
 
