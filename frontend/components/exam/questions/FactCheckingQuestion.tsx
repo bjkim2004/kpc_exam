@@ -45,7 +45,7 @@ export default function FactCheckingQuestion({ question }: Props) {
   };
 
   return (
-    <div className="h-[calc(100vh-140px)] p-4 bg-neutral-100">
+    <div className="h-[calc(100vh-100px)] p-4 bg-neutral-100">
       {/* 2x2 Grid Layout - 완벽한 대칭 */}
       <div className="exam-grid-2x2">
         
@@ -64,7 +64,13 @@ export default function FactCheckingQuestion({ question }: Props) {
             <div className="flex items-center gap-2 mb-3 pb-3 border-b border-neutral-200 text-xs">
               {question.competency && (
                 <>
-                  <span className="exam-info-badge text-blue-700 bg-blue-50 border border-blue-200">{question.competency}</span>
+                  <span className={`exam-info-badge font-semibold px-2.5 py-1 rounded-md ${
+                    question.competency.includes('역량 A') ? 'text-blue-900 bg-blue-50 border border-blue-300' :
+                    question.competency.includes('역량 B') ? 'text-amber-900 bg-amber-50 border border-amber-300' :
+                    question.competency.includes('역량 C') ? 'text-rose-900 bg-rose-50 border border-rose-300' :
+                    question.competency.includes('역량 D') ? 'text-purple-900 bg-purple-50 border border-purple-300' :
+                    'text-gray-700 bg-gray-50 border border-gray-200'
+                  }`}>{question.competency}</span>
                   <span className="text-neutral-400">|</span>
                 </>
               )}

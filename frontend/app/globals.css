@@ -432,7 +432,7 @@ body {
   font-weight: 700;
   margin-top: 1rem;
   margin-bottom: 0.5rem;
-  color: #111827;
+  color: inherit;
 }
 
 .exam-html-content h1 { font-size: 1.5rem; }
@@ -465,7 +465,24 @@ body {
 .exam-html-content strong,
 .exam-html-content b {
   font-weight: 700;
-  color: #111827;
+  color: inherit;
+}
+
+/* Inline style 색상이 자식 요소에 상속되도록 */
+.exam-html-content [style*="color"] strong,
+.exam-html-content [style*="color"] b,
+.exam-html-content [style*="color"] p,
+.exam-html-content [style*="color"] em,
+.exam-html-content [style*="color"] span,
+.exam-html-content [style*="color"] h1,
+.exam-html-content [style*="color"] h2,
+.exam-html-content [style*="color"] h3,
+.exam-html-content [style*="color"] h4,
+.exam-html-content [style*="color"] h5,
+.exam-html-content [style*="color"] h6,
+.exam-html-content [style*="color"] li,
+.exam-html-content [style*="color"] a {
+  color: inherit;
 }
 
 .exam-html-content em,

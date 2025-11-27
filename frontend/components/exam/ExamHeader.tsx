@@ -167,11 +167,11 @@ export default function ExamHeader({ onMenuClick }: ExamHeaderProps) {
           <button
             key={q.id}
             onClick={() => handleQuestionClick(displayNumber)}
-            className="relative w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 border-2 border-blue-400/50 flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-blue-500/40 ring-2 ring-blue-300/30 transition-all duration-300 hover:scale-110 cursor-pointer"
+            className="relative w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 border border-blue-400/50 flex items-center justify-center text-white text-[10px] font-bold shadow-md shadow-blue-500/40 ring-1 ring-blue-300/30 transition-all duration-300 hover:scale-110 cursor-pointer"
             title={`문항 ${displayNumber} (현재)${hasAnswer ? ' - 저장됨' : ''}`}
           >
             {hasAnswer ? (
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
               </svg>
             ) : (
@@ -186,15 +186,15 @@ export default function ExamHeader({ onMenuClick }: ExamHeaderProps) {
         <button
           key={q.id}
           onClick={() => handleQuestionClick(displayNumber)}
-          className={`relative w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold transition-all duration-300 hover:scale-125 cursor-pointer ${
+          className={`relative w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold transition-all duration-300 hover:scale-125 cursor-pointer ${
             hasAnswer
-              ? 'bg-gradient-to-br from-emerald-600 to-green-600 text-white shadow-md shadow-emerald-500/30 border border-emerald-500/50 hover:shadow-lg'
+              ? 'bg-gradient-to-br from-emerald-600 to-green-600 text-white shadow-sm shadow-emerald-500/30 border border-emerald-500/50 hover:shadow-md'
               : 'bg-white/10 text-slate-400 border border-white/20 hover:bg-white/20 hover:border-white/40 hover:text-white'
           }`}
           title={`문항 ${displayNumber}${hasAnswer ? ' (완료)' : ' (미완료)'}`}
         >
           {hasAnswer ? (
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
             </svg>
           ) : (
@@ -209,42 +209,42 @@ export default function ExamHeader({ onMenuClick }: ExamHeaderProps) {
   };
 
   return (
-    <header className="relative bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/50 h-20 flex items-center justify-between px-8 sticky top-0 z-50 backdrop-blur-xl shadow-2xl">
+    <header className="relative bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/50 h-14 flex items-center justify-between px-6 sticky top-0 z-50 backdrop-blur-xl shadow-2xl">
       {/* Subtle gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/10 pointer-events-none"></div>
       
       {/* Left: Menu Button + Exam Name */}
-      <div className="flex items-center gap-5 relative z-10">
+      <div className="flex items-center gap-4 relative z-10">
         {/* Menu Button - Glassmorphism */}
         <button
           onClick={onMenuClick}
-          className="group p-2.5 bg-white/5 hover:bg-white/10 backdrop-blur-sm border border-white/10 hover:border-white/20 rounded-xl transition-all duration-300 hover:scale-105 shadow-lg"
+          className="group p-2 bg-white/5 hover:bg-white/10 backdrop-blur-sm border border-white/10 hover:border-white/20 rounded-lg transition-all duration-300 hover:scale-105 shadow-lg"
           aria-label="문항 목록 열기"
           title="문항 목록"
         >
-          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="text-white/90 group-hover:text-white transition-colors">
+          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="text-white/90 group-hover:text-white transition-colors">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
         
-        <div className="flex flex-col">
+        <div className="flex items-center gap-2">
           <h1 className="text-base font-bold text-white tracking-tight bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent">
             생성형 AI 활용 역량평가
           </h1>
-          <p className="text-xs text-slate-400 font-medium">Generative AI Assessment</p>
+          <span className="text-[10px] text-slate-400 font-medium px-2 py-0.5 bg-white/5 rounded-md border border-white/10">Generative AI Assessment</span>
         </div>
       </div>
 
       {/* Center: Progress Dots - Compact & Clickable */}
-      <div className="flex items-center gap-1.5 relative z-10 px-4 py-2 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10">
+      <div className="flex items-center gap-1 relative z-10 px-3 py-1.5 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
         {getProgressDots()}
       </div>
 
       {/* Right: Timer, Submit Button, User */}
-      <div className="flex items-center gap-3.5 relative z-10">
+      <div className="flex items-center gap-2 relative z-10">
         {/* Timer - Premium Design */}
         <div
-          className={`flex items-center gap-2.5 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 backdrop-blur-sm shadow-xl ${
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-bold text-xs transition-all duration-300 backdrop-blur-sm shadow-lg ${
             timerColor === 'danger'
               ? `bg-gradient-to-r from-red-600 to-red-700 text-white border border-red-500/50 shadow-red-500/50 ${shouldBlink ? 'timer-warning' : ''}`
               : timerColor === 'warning'
@@ -252,31 +252,31 @@ export default function ExamHeader({ onMenuClick }: ExamHeaderProps) {
               : 'bg-gradient-to-r from-slate-700 to-slate-800 text-white border border-slate-600/50'
           }`}
         >
-          <span className="text-lg">⏱</span>
-          <span className="tabular-nums text-base">{formatTime(timeRemaining)}</span>
+          <span className="text-xs">⏱</span>
+          <span className="tabular-nums text-xs">{formatTime(timeRemaining)}</span>
         </div>
 
         {/* Submit Button - Premium Design */}
         <button
           onClick={() => setShowSubmitModal(true)}
-          className="group flex items-center gap-2.5 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold text-sm rounded-xl border border-blue-500/50 transition-all duration-300 shadow-xl shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-105 hover:-translate-y-0.5"
+          className="group flex items-center gap-1.5 px-2.5 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold text-xs rounded-lg border border-blue-500/50 transition-all duration-300 shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-105"
         >
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="group-hover:scale-110 transition-transform">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="group-hover:scale-110 transition-transform">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span>답안 제출</span>
+          <span>제출</span>
         </button>
 
         {/* User Card - Premium Glassmorphism */}
-        <div className="flex items-center gap-3 px-4 py-2.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl shadow-xl hover:bg-white/10 transition-all duration-300">
-          <div className="flex items-center justify-center w-9 h-9 bg-gradient-to-br from-slate-700 to-slate-800 rounded-full border border-white/20 shadow-lg">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="text-white">
+        <div className="flex items-center gap-2.5 px-3 py-1.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg shadow-lg hover:bg-white/10 transition-all duration-300 min-w-[140px]">
+          <div className="flex items-center justify-center w-7 h-7 bg-gradient-to-br from-slate-700 to-slate-800 rounded-full border border-white/20 shadow-md flex-shrink-0">
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="text-white">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs text-slate-400 font-medium leading-tight">수험번호</span>
-            <span className="text-sm font-bold text-white tabular-nums leading-tight">{user?.exam_number}</span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[10px] text-slate-400 font-medium leading-tight">수험번호</span>
+            <span className="text-xs font-bold text-white tabular-nums leading-tight truncate">{user?.exam_number || '로딩중...'}</span>
           </div>
         </div>
       </div>

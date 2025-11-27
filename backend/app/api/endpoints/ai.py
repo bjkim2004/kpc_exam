@@ -332,3 +332,19 @@ async def get_ai_usage(
     return usage_by_question
 
 
+@router.get("/key-pool/status")
+async def get_key_pool_status():
+    """Gemini API 키 풀 상태 확인 (관리자용)"""
+    if ai_service.gemini_key_pool:
+        return ai_service.gemini_key_pool.get_status()
+    else:
+        return {
+            "total_keys": 1 if ai_service.gemini_client else 0,
+            "rate_limit_per_minute": "N/A (single key mode)",
+            "keys_status": [{
+                "key_index": 0,
+                "status": "active" if ai_service.gemini_client else "not configured"
+            }]
+        }
+
+

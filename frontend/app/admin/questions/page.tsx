@@ -147,10 +147,10 @@ export default function QuestionsManagementPage() {
   };
 
   const quickAddOptions = [
-    { competency: '역량 A: 기초 이해 및 활용', type: 'multiple_choice', label: '역량 A: 기초 이해 및 활용', color: 'bg-neutral-600 hover:bg-neutral-700' },
-    { competency: '역량 B: 문제해결 및 실무 적용', type: 'prompt_design', label: '역량 B: 문제해결 및 실무 적용', color: 'bg-neutral-700 hover:bg-neutral-800' },
-    { competency: '역량 C: 비판적 사고 및 평가', type: 'fact_checking', label: '역량 C: 비판적 사고 및 평가', color: 'bg-neutral-800 hover:bg-neutral-900' },
-    { competency: '역량 D: 윤리 및 책임성', type: 'ethical_review', label: '역량 D: 윤리 및 책임성', color: 'bg-neutral-900 hover:bg-black' },
+    { competency: '역량 A: 기초 이해 및 활용', type: 'multiple_choice', label: '역량 A: 기초 이해 및 활용', color: 'bg-blue-600 hover:bg-blue-700' },
+    { competency: '역량 B: 문제해결 및 실무 적용', type: 'prompt_design', label: '역량 B: 문제해결 및 실무 적용', color: 'bg-amber-600 hover:bg-amber-700' },
+    { competency: '역량 C: 비판적 사고 및 평가', type: 'fact_checking', label: '역량 C: 비판적 사고 및 평가', color: 'bg-rose-600 hover:bg-rose-700' },
+    { competency: '역량 D: 윤리 및 책임성', type: 'ethical_review', label: '역량 D: 윤리 및 책임성', color: 'bg-purple-600 hover:bg-purple-700' },
   ];
 
   const handleEdit = async (questionId: number) => {

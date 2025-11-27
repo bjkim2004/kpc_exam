@@ -55,6 +55,11 @@ export default function MultipleChoiceQuestion({ question }: Props) {
       return;
     }
 
+    if (!examId) {
+      alert('시험이 시작되지 않았습니다. 페이지를 새로고침해주세요.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const response = await apiClient.post('/ai/gemini', {
@@ -77,7 +82,20 @@ export default function MultipleChoiceQuestion({ question }: Props) {
   const optionLabels = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'];
 
   return (
-    <div className="h-[calc(100vh-140px)] p-4 bg-neutral-100">
+    <div className="h-[calc(100vh-100px)] p-4 bg-neutral-100">
+      {/* Loading Modal */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white/95 rounded-2xl shadow-xl px-6 py-5 flex items-center gap-3 border border-neutral-200">
+            <svg className="w-5 h-5 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <div className="text-sm font-medium text-neutral-700">AI 응답 생성 중...</div>
+          </div>
+        </div>
+      )}
+
       {/* 2 Column Layout - 좌우 대칭 50:50 */}
       <div className="grid grid-cols-2 gap-3 h-full">
         
@@ -96,7 +114,13 @@ export default function MultipleChoiceQuestion({ question }: Props) {
             <div className="flex items-center gap-2 mb-3 pb-3 border-b border-neutral-200 text-xs">
               {question.competency && (
                 <>
-                  <span className="exam-info-badge text-blue-700 bg-blue-50 border border-blue-200">{question.competency}</span>
+                  <span className={`exam-info-badge font-semibold px-2.5 py-1 rounded-md ${
+                    question.competency.includes('역량 A') ? 'text-blue-900 bg-blue-50 border border-blue-300' :
+                    question.competency.includes('역량 B') ? 'text-amber-900 bg-amber-50 border border-amber-300' :
+                    question.competency.includes('역량 C') ? 'text-rose-900 bg-rose-50 border border-rose-300' :
+                    question.competency.includes('역량 D') ? 'text-purple-900 bg-purple-50 border border-purple-300' :
+                    'text-gray-700 bg-gray-50 border border-gray-200'
+                  }`}>{question.competency}</span>
                   <span className="text-neutral-400">|</span>
                 </>
               )}
@@ -201,26 +225,28 @@ export default function MultipleChoiceQuestion({ question }: Props) {
               {/* Prompt Input */}
               <div className="w-full">
                 <h3 className="exam-section-title">프롬프트 입력</h3>
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  className="exam-textarea h-20 resize-none text-xs w-full"
-                  placeholder="AI에게 질문하세요..."
-                />
-                <div className="flex gap-1.5 mt-2">
-                  <button
-                    onClick={handleAIRequest}
-                    disabled={isLoading}
-                    className="exam-btn-primary text-xs"
-                  >
-                    {isLoading ? '요청 중...' : '전송 ↓'}
-                  </button>
-                  <button
-                    onClick={() => setPrompt('')}
-                    className="exam-btn-secondary text-xs"
-                  >
-                    지우기
-                  </button>
+                <div className="flex gap-2">
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    className="exam-textarea h-24 resize-none text-xs flex-1"
+                    placeholder="AI에게 질문하세요..."
+                  />
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      onClick={handleAIRequest}
+                      disabled={isLoading}
+                      className="exam-btn-primary text-xs h-[30px] px-3"
+                    >
+                      {isLoading ? '요청 중...' : '전송 ↓'}
+                    </button>
+                    <button
+                      onClick={() => setPrompt('')}
+                      className="exam-btn-secondary text-xs h-[30px] px-3"
+                    >
+                      지우기
+                    </button>
+                  </div>
                 </div>
               </div>
               

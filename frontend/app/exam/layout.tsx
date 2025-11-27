@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useExamStore } from '@/lib/stores/examStore';
+import { useAuthStore } from '@/lib/stores/authStore';
 import ExamHeader from '@/components/exam/ExamHeader';
 import ExamNavigation from '@/components/exam/ExamNavigation';
 import ExamSidebar from '@/components/exam/ExamSidebar';
@@ -14,7 +15,8 @@ export default function ExamLayout({
 }) {
   // Desktop: always open (true), Mobile: closed by default (false)
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { loadQuestions, questions } = useExamStore();
+  const { loadQuestions, questions, startExam, examId } = useExamStore();
+  const { checkAuth } = useAuthStore();
   // const [focusLostCount, setFocusLostCount] = useState(0); // 부정행위 방지 기능 비활성화
 
   useEffect(() => {
@@ -30,12 +32,29 @@ export default function ExamLayout({
       }
     };
     
-    checkConnection();
+    const initExam = async () => {
+      await checkConnection();
+      
+      // Check auth to get user info (exam_number)
+      await checkAuth();
+      
+      // Start exam if not already started (to get examId)
+      if (!examId) {
+        try {
+          await startExam();
+          console.log('✅ Exam started automatically');
+        } catch (error) {
+          console.error('Failed to start exam:', error);
+        }
+      }
+      
+      // Load questions if not already loaded
+      if (questions.length === 0) {
+        loadQuestions();
+      }
+    };
     
-    // Load questions if not already loaded
-    if (questions.length === 0) {
-      loadQuestions();
-    }
+    initExam();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ========================================

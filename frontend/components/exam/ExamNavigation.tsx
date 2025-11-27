@@ -89,48 +89,48 @@ export default function ExamNavigation() {
 
   return (
     <>
-      <footer className="bg-white border-t-2 border-neutral-300 h-16 flex items-center justify-between px-6 shadow-elevation-2 relative">
+      <footer className="bg-white border-t-2 border-neutral-300 h-12 flex items-center justify-between px-6 shadow-elevation-2 relative">
         {/* Left: IITP Logo */}
         <div className="flex items-center">
           <Image
             src="/logo.svg"
             alt="정보통신기획평가원"
-            width={244}
-            height={32}
+            width={200}
+            height={26}
             className="object-contain"
             priority
           />
         </div>
 
         {/* Center: Navigation buttons */}
-        <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-4">
+        <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-3">
           <button
             onClick={handlePrevious}
             disabled={isFirstQuestion}
-            className="px-6 py-2.5 text-sm font-semibold text-neutral-700 bg-white border-2 border-neutral-400 rounded-button hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-elevation-1"
+            className="px-5 py-1.5 text-xs font-semibold text-neutral-700 bg-white border border-neutral-400 rounded-md hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
           >
             ◄ 이전
           </button>
           <button
             onClick={handleNext}
             disabled={isLastQuestion}
-            className="px-6 py-2.5 text-sm font-semibold text-neutral-700 bg-white border-2 border-neutral-400 rounded-button hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-elevation-1"
+            className="px-5 py-1.5 text-xs font-semibold text-neutral-700 bg-white border border-neutral-400 rounded-md hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
           >
             다음 ►
           </button>
         </div>
 
         {/* Right: Help, Save */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => alert('문의사항이 있으시면 시험 관리자에게 연락해주세요.\n\n이메일: support@example.com\n전화: 02-1234-5678')}
-            className="px-4 py-2 text-sm font-semibold text-neutral-700 bg-white border-2 border-neutral-400 rounded-button hover:bg-neutral-100 transition-all shadow-elevation-1"
+            className="px-3 py-1.5 text-xs font-semibold text-neutral-700 bg-white border border-neutral-400 rounded-md hover:bg-neutral-100 transition-all shadow-sm"
           >
             문의하기
           </button>
           <button
             onClick={handleSave}
-            className="px-6 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-button transition-all shadow-elevation-3"
+            className="px-4 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-md transition-all shadow-sm"
           >
             저장
           </button>

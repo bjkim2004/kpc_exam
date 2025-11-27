@@ -15,6 +15,7 @@ interface Question {
   points: number;
   competency: string;
   is_active: number;
+  time_limit?: number;
 }
 
 export default function HomePage() {
@@ -155,8 +156,8 @@ export default function HomePage() {
   // 시험 정보 계산
   const totalQuestions = questions.length;
   const totalPoints = questions.reduce((sum, q) => sum + q.points, 0);
-  const examTimeMinutes = 150; // 기본 시험 시간 (분)
-  const passingScore = 70; // 합격 기준 점수
+  // 활성화된 문제의 권장시간 합계 (time_limit이 없으면 0으로 처리)
+  const examTimeMinutes = questions.reduce((sum, q) => sum + (q.time_limit || 0), 0);
 
   // 역량별 문항 및 점수 계산
   const competencyStats = questions.reduce((acc, q, index) => {
@@ -224,7 +225,7 @@ export default function HomePage() {
             {loadingQuestions ? (
               <div className="text-center py-4 text-neutral-600">시험 정보를 불러오는 중...</div>
             ) : (
-              <div className="grid grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-3 gap-4 text-sm">
                 <div className="flex flex-col items-center py-3 bg-neutral-50 border border-neutral-300 rounded">
                   <span className="text-neutral-600 mb-1">총 문항 수</span>
                   <span className="font-bold text-neutral-900 text-lg">{totalQuestions}문항</span>
@@ -236,10 +237,6 @@ export default function HomePage() {
                 <div className="flex flex-col items-center py-3 bg-neutral-50 border border-neutral-300 rounded">
                   <span className="text-neutral-600 mb-1">시험 시간</span>
                   <span className="font-bold text-neutral-900 text-lg">{examTimeMinutes}분</span>
-                </div>
-                <div className="flex flex-col items-center py-3 bg-neutral-50 border border-neutral-300 rounded">
-                  <span className="text-neutral-600 mb-1">합격 기준</span>
-                  <span className="font-bold text-neutral-900 text-lg">{passingScore}점</span>
                 </div>
               </div>
             )}
@@ -256,10 +253,15 @@ export default function HomePage() {
                   const questionRange = stats.questions.length > 0
                     ? `문항 ${Math.min(...stats.questions)}-${Math.max(...stats.questions)}`
                     : '문항 없음';
+                  const colorClass = comp.includes('역량 A') ? 'bg-blue-50 border-blue-300 text-blue-900' :
+                    comp.includes('역량 B') ? 'bg-amber-50 border-amber-300 text-amber-900' :
+                    comp.includes('역량 C') ? 'bg-rose-50 border-rose-300 text-rose-900' :
+                    comp.includes('역량 D') ? 'bg-purple-50 border-purple-300 text-purple-900' :
+                    'bg-neutral-50 border-neutral-300 text-neutral-900';
                   return (
-                    <div key={comp} className="p-3 bg-neutral-50 border border-neutral-300 rounded">
-                      <div className="font-bold text-neutral-900">{comp}</div>
-                      <div className="text-neutral-600 mt-1">{questionRange} ({stats.points}점)</div>
+                    <div key={comp} className={`p-3 border rounded ${colorClass}`}>
+                      <div className="font-bold">{comp}</div>
+                      <div className="opacity-75 mt-1">{questionRange} ({stats.points}점)</div>
                     </div>
                   );
                 })}
@@ -294,7 +296,13 @@ export default function HomePage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 mt-auto pt-2 border-t border-neutral-200">
-                    <div className="text-sm font-semibold text-neutral-600 bg-white px-2.5 py-1 rounded border border-neutral-300">
+                    <div className={`text-sm font-semibold px-2.5 py-1 rounded border ${
+                      q.competency?.includes('역량 A') ? 'text-blue-900 bg-blue-50 border-blue-300' :
+                      q.competency?.includes('역량 B') ? 'text-amber-900 bg-amber-50 border-amber-300' :
+                      q.competency?.includes('역량 C') ? 'text-rose-900 bg-rose-50 border-rose-300' :
+                      q.competency?.includes('역량 D') ? 'text-purple-900 bg-purple-50 border-purple-300' :
+                      'text-neutral-600 bg-white border-neutral-300'
+                    }`}>
                       {q.competency || '기타'}
                     </div>
                     <div className="text-sm text-neutral-500 bg-neutral-100 px-2.5 py-1 rounded border border-neutral-300">

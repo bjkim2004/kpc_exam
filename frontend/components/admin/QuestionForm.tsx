@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import HtmlEditor from './HtmlEditor';
 
 interface QuestionFormProps {
   initialData?: any;
@@ -30,13 +31,15 @@ export default function QuestionForm({ initialData, onSubmit, onCancel, isEdit =
   const [optionText, setOptionText] = useState('');
   const [requirementText, setRequirementText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [editingRequirementIndex, setEditingRequirementIndex] = useState<number | null>(null);
+  const [editingRequirementText, setEditingRequirementText] = useState('');
 
   // 역량별 구분
   const competencies = [
-    { value: '역량 A: 기초 이해 및 활용', label: '역량 A: 기초 이해 및 활용', color: 'bg-neutral-100 text-neutral-700' },
-    { value: '역량 B: 문제해결 및 실무 적용', label: '역량 B: 문제해결 및 실무 적용', color: 'bg-neutral-200 text-neutral-800' },
-    { value: '역량 C: 비판적 사고 및 평가', label: '역량 C: 비판적 사고 및 평가', color: 'bg-neutral-300 text-neutral-900' },
-    { value: '역량 D: 윤리 및 책임성', label: '역량 D: 윤리 및 책임성', color: 'bg-neutral-400 text-neutral-900' },
+    { value: '역량 A: 기초 이해 및 활용', label: '역량 A: 기초 이해 및 활용', color: 'bg-blue-50 text-blue-900 border border-blue-300' },
+    { value: '역량 B: 문제해결 및 실무 적용', label: '역량 B: 문제해결 및 실무 적용', color: 'bg-amber-50 text-amber-900 border border-amber-300' },
+    { value: '역량 C: 비판적 사고 및 평가', label: '역량 C: 비판적 사고 및 평가', color: 'bg-rose-50 text-rose-900 border border-rose-300' },
+    { value: '역량 D: 윤리 및 책임성', label: '역량 D: 윤리 및 책임성', color: 'bg-purple-50 text-purple-900 border border-purple-300' },
   ];
 
   // 문제 유형 (3가지로 단순화)
@@ -92,6 +95,29 @@ export default function QuestionForm({ initialData, onSubmit, onCancel, isEdit =
       ...formData,
       requirements: formData.requirements.filter((_: any, i: number) => i !== index)
     });
+  };
+
+  const startEditRequirement = (index: number, text: string) => {
+    setEditingRequirementIndex(index);
+    setEditingRequirementText(text);
+  };
+
+  const saveEditRequirement = () => {
+    if (editingRequirementIndex !== null && editingRequirementText.trim()) {
+      const newRequirements = [...formData.requirements];
+      newRequirements[editingRequirementIndex] = editingRequirementText.trim();
+      setFormData({
+        ...formData,
+        requirements: newRequirements
+      });
+      setEditingRequirementIndex(null);
+      setEditingRequirementText('');
+    }
+  };
+
+  const cancelEditRequirement = () => {
+    setEditingRequirementIndex(null);
+    setEditingRequirementText('');
   };
 
   return (
@@ -201,15 +227,13 @@ export default function QuestionForm({ initialData, onSubmit, onCancel, isEdit =
 
           <div>
             <label className="block text-xs font-semibold text-neutral-600 mb-1.5">
-              문제 내용 * <span className="text-xs text-neutral-400 font-normal">(HTML 가능)</span>
+              문제 내용 * <span className="text-xs text-neutral-400 font-normal">(HTML 편집기)</span>
             </label>
-            <textarea
-              required
-              rows={5}
+            <HtmlEditor
               value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+              onChange={(value) => setFormData({ ...formData, content: value })}
               placeholder="HTML 형식으로 입력 가능합니다. 예: <h3>문제 제목</h3><p>내용...</p>"
-              className="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-1 focus:ring-neutral-900 font-mono text-xs"
+              rows={6}
             />
           </div>
         </div>
@@ -265,13 +289,13 @@ export default function QuestionForm({ initialData, onSubmit, onCancel, isEdit =
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-semibold text-neutral-600 mb-1.5">
-              시나리오
+              시나리오 <span className="text-xs text-neutral-400 font-normal">(HTML 편집기)</span>
             </label>
-            <textarea
-              rows={3}
+            <HtmlEditor
               value={formData.scenario}
-              onChange={(e) => setFormData({ ...formData, scenario: e.target.value })}
-              className="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-1 focus:ring-neutral-900 text-sm"
+              onChange={(value) => setFormData({ ...formData, scenario: value })}
+              placeholder="시나리오를 입력하세요..."
+              rows={4}
             />
           </div>
 
@@ -314,14 +338,55 @@ export default function QuestionForm({ initialData, onSubmit, onCancel, isEdit =
             <ul className="space-y-1">
               {formData.requirements.map((req: string, idx: number) => (
                 <li key={idx} className="flex items-center gap-2 bg-neutral-50 p-2 rounded-md border border-neutral-200">
-                  <span className="flex-1 text-xs">{req}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeRequirement(idx)}
-                    className="px-2 py-0.5 bg-neutral-200 text-neutral-700 rounded hover:bg-neutral-300 transition-all text-xs font-medium"
-                  >
-                    삭제
-                  </button>
+                  {editingRequirementIndex === idx ? (
+                    <>
+                      <input
+                        type="text"
+                        value={editingRequirementText}
+                        onChange={(e) => setEditingRequirementText(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            saveEditRequirement();
+                          }
+                        }}
+                        className="flex-1 px-2 py-1 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-neutral-900"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={saveEditRequirement}
+                        className="px-2 py-0.5 bg-green-600 text-white rounded hover:bg-green-700 transition-all text-xs font-medium"
+                      >
+                        저장
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEditRequirement}
+                        className="px-2 py-0.5 bg-neutral-400 text-white rounded hover:bg-neutral-500 transition-all text-xs font-medium"
+                      >
+                        취소
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-xs">{req}</span>
+                      <button
+                        type="button"
+                        onClick={() => startEditRequirement(idx, req)}
+                        className="px-2 py-0.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-all text-xs font-medium"
+                      >
+                        수정
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeRequirement(idx)}
+                        className="px-2 py-0.5 bg-neutral-200 text-neutral-700 rounded hover:bg-neutral-300 transition-all text-xs font-medium"
+                      >
+                        삭제
+                      </button>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>

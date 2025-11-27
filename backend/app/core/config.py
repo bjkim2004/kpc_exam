@@ -33,12 +33,17 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    # 여러 Gemini API 키 지원 (콤마로 구분)
+    GEMINI_API_KEYS: str = ""  # 예: "key1,key2,key3"
     
     # Default AI Provider
     DEFAULT_AI_PROVIDER: str = "gemini"  # Options: openai, anthropic, gemini
     
     # AI Usage Limits
     AI_USAGE_LIMIT_PER_QUESTION: int = 10
+    
+    # Rate Limiting (requests per minute per key)
+    GEMINI_RATE_LIMIT_PER_KEY: int = 15
     
     # Redis (Optional)
     REDIS_URL: str = ""

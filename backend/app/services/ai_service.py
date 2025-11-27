@@ -1,7 +1,10 @@
 import openai
 from anthropic import Anthropic
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from app.core.config import settings
+import time
+import threading
+from collections import deque
 
 # Safely import google.generativeai
 try:
@@ -11,6 +14,91 @@ except ImportError as e:
     print(f"Warning: google.generativeai not available: {e}")
     genai = None
     GENAI_AVAILABLE = False
+
+
+class GeminiKeyPool:
+    """Gemini API 키 풀링 및 Rate Limiting 관리"""
+    
+    def __init__(self, keys: List[str], rate_limit_per_minute: int = 15):
+        self.keys = keys
+        self.rate_limit = rate_limit_per_minute
+        self.current_index = 0
+        self.lock = threading.Lock()
+        # 각 키별 요청 타임스탬프 기록 (슬라이딩 윈도우)
+        self.request_times: Dict[str, deque] = {key: deque() for key in keys}
+        # 각 키별 클라이언트 캐시
+        self.clients: Dict[str, Any] = {}
+        print(f"[KeyPool] Gemini Key Pool initialized with {len(keys)} key(s)")
+    
+    def _clean_old_requests(self, key: str):
+        """1분이 지난 요청 기록 제거"""
+        current_time = time.time()
+        while self.request_times[key] and current_time - self.request_times[key][0] > 60:
+            self.request_times[key].popleft()
+    
+    def _get_available_key(self) -> Optional[str]:
+        """Rate Limit을 고려하여 사용 가능한 키 반환"""
+        current_time = time.time()
+        
+        # 모든 키를 순회하며 사용 가능한 키 찾기
+        for _ in range(len(self.keys)):
+            key = self.keys[self.current_index]
+            self.current_index = (self.current_index + 1) % len(self.keys)
+            
+            self._clean_old_requests(key)
+            
+            # Rate Limit 확인
+            if len(self.request_times[key]) < self.rate_limit:
+                return key
+        
+        # 모든 키가 Rate Limit에 도달한 경우, 가장 여유로운 키 반환
+        min_requests = float('inf')
+        best_key = self.keys[0]
+        for key in self.keys:
+            self._clean_old_requests(key)
+            if len(self.request_times[key]) < min_requests:
+                min_requests = len(self.request_times[key])
+                best_key = key
+        
+        return best_key
+    
+    def get_client(self) -> tuple:
+        """사용 가능한 키로 Gemini 클라이언트 반환"""
+        with self.lock:
+            key = self._get_available_key()
+            if not key:
+                raise ValueError("No available Gemini API keys")
+            
+            # 요청 시간 기록
+            self.request_times[key].append(time.time())
+            
+            # 클라이언트가 캐시에 없으면 생성
+            if key not in self.clients:
+                genai.configure(api_key=key)
+                self.clients[key] = genai.GenerativeModel('models/gemini-2.5-flash-lite')
+            
+            # 해당 키로 configure 설정 (멀티키 환경에서 필요)
+            genai.configure(api_key=key)
+            
+            return self.clients[key], key
+    
+    def get_status(self) -> Dict[str, Any]:
+        """키 풀 상태 반환"""
+        with self.lock:
+            status = {
+                "total_keys": len(self.keys),
+                "rate_limit_per_minute": self.rate_limit,
+                "keys_status": []
+            }
+            for i, key in enumerate(self.keys):
+                self._clean_old_requests(key)
+                status["keys_status"].append({
+                    "key_index": i,
+                    "key_preview": f"{key[:8]}...{key[-4:]}",
+                    "requests_last_minute": len(self.request_times[key]),
+                    "available_requests": max(0, self.rate_limit - len(self.request_times[key]))
+                })
+            return status
 
 
 class AIService:
@@ -31,29 +119,32 @@ class AIService:
             except Exception as e:
                 print(f"Warning: Failed to initialize Anthropic client: {e}")
         
-        # Initialize Gemini with optimized settings for faster response
+        # Initialize Gemini Key Pool
+        self.gemini_key_pool: Optional[GeminiKeyPool] = None
         self.gemini_client = None
-        if settings.GEMINI_API_KEY and GENAI_AVAILABLE and genai:
-            try:
-                genai.configure(api_key=settings.GEMINI_API_KEY)
-                # Use gemini-2.5-flash for fast response with good quality
-                generation_config = genai.GenerationConfig(
-                    temperature=0.7,
-                    max_output_tokens=1024,  # Limit output for faster response
-                )
-                # Set safety settings using proper types for latest API
-                from google.generativeai.types import HarmCategory, HarmBlockThreshold
-                safety_settings = {
-                    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-                }
-                self.gemini_client = genai.GenerativeModel(
-                    'models/gemini-2.5-flash-lite'  # Use full model path
-                )
-            except Exception as e:
-                print(f"Warning: Failed to initialize Gemini client: {e}")
+        
+        if GENAI_AVAILABLE and genai:
+            # 여러 키 파싱 (GEMINI_API_KEYS가 설정되어 있으면 사용, 아니면 GEMINI_API_KEY 사용)
+            gemini_keys = []
+            
+            if settings.GEMINI_API_KEYS:
+                # 콤마로 구분된 여러 키 파싱
+                gemini_keys = [k.strip() for k in settings.GEMINI_API_KEYS.split(',') if k.strip()]
+            
+            if not gemini_keys and settings.GEMINI_API_KEY:
+                # 단일 키만 있는 경우
+                gemini_keys = [settings.GEMINI_API_KEY]
+            
+            if gemini_keys:
+                try:
+                    rate_limit = getattr(settings, 'GEMINI_RATE_LIMIT_PER_KEY', 15)
+                    self.gemini_key_pool = GeminiKeyPool(gemini_keys, rate_limit)
+                    # 기본 클라이언트도 설정 (호환성)
+                    genai.configure(api_key=gemini_keys[0])
+                    self.gemini_client = genai.GenerativeModel('models/gemini-2.5-flash-lite')
+                    print(f"[OK] Gemini initialized with {len(gemini_keys)} API key(s)")
+                except Exception as e:
+                    print(f"Warning: Failed to initialize Gemini client: {e}")
         elif settings.GEMINI_API_KEY and not GENAI_AVAILABLE:
             print(f"Warning: Gemini API key provided but google.generativeai package not available")
         
@@ -106,86 +197,90 @@ class AIService:
             raise Exception(f"Anthropic API error: {str(e)}")
     
     async def gemini(self, prompt: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Call Google Gemini API"""
-        if not self.gemini_client:
+        """Call Google Gemini API - Optimized for speed with key pooling"""
+        if not self.gemini_key_pool and not self.gemini_client:
             if not GENAI_AVAILABLE:
-                raise ValueError("google.generativeai package not available. Please install it with: pip install google-generativeai")
+                raise ValueError("google.generativeai package not available")
             raise ValueError("Gemini API key not configured")
         
-        try:
-            print(f"🤖 Sending prompt to Gemini (length: {len(prompt)})")
-            response = self.gemini_client.generate_content(prompt)
-            print(f"🤖 Received Gemini response")
-            
-            # Debug: Log response info
-            if hasattr(response, 'candidates') and response.candidates:
-                c = response.candidates[0]
-                if hasattr(c, 'finish_reason'):
-                    print(f"🔍 Finish reason: {c.finish_reason}")
-            
-            # Handle response safely - extract text from various response formats
-            response_text = self._extract_gemini_text(response)
-            
-            if not response_text:
-                # Check finish reason
-                finish_reason = "Unknown"
-                if hasattr(response, 'candidates') and response.candidates:
-                    c = response.candidates[0]
-                    if hasattr(c, 'finish_reason'):
-                        finish_reason = str(c.finish_reason)
-                raise ValueError(f"No text content. Finish reason: {finish_reason}")
-            
-            # Estimate tokens
-            estimated_tokens = (len(prompt) + len(response_text)) // 4
-            
-            return {
-                "response": response_text,
-                "tokens_used": estimated_tokens,
-                "model": "gemini-2.5-flash-lite"
-            }
-        except Exception as e:
-            print(f"❌ Gemini API error: {str(e)}")
-            raise Exception(f"Gemini API error: {str(e)}")
+        # 최대 재시도 횟수 (키 개수만큼)
+        max_retries = len(self.gemini_key_pool.keys) if self.gemini_key_pool else 1
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                # 키 풀에서 클라이언트 가져오기
+                if self.gemini_key_pool:
+                    client, used_key = self.gemini_key_pool.get_client()
+                else:
+                    client = self.gemini_client
+                    used_key = "single"
+                
+                # Optimized generation config for faster response
+                generation_config = {
+                    "temperature": 0.7,
+                    "max_output_tokens": 1024,  # Limit output length for speed
+                }
+                
+                response = client.generate_content(
+                    prompt,
+                    generation_config=generation_config
+                )
+                
+                # Fast text extraction - try response.text first
+                response_text = self._extract_gemini_text_fast(response)
+                
+                if not response_text:
+                    raise ValueError("No text content in response")
+                
+                return {
+                    "response": response_text,
+                    "tokens_used": (len(prompt) + len(response_text)) // 4,
+                    "model": "gemini-2.5-flash-lite",
+                    "key_index": self.gemini_key_pool.keys.index(used_key) if self.gemini_key_pool and used_key != "single" else 0
+                }
+            except Exception as e:
+                last_error = e
+                error_msg = str(e).lower()
+                # Rate limit 또는 quota 에러인 경우 다음 키로 재시도
+                if "quota" in error_msg or "rate" in error_msg or "limit" in error_msg or "429" in error_msg:
+                    print(f"[WARN] Gemini API rate limit hit (attempt {attempt + 1}/{max_retries}), trying next key...")
+                    continue
+                # 다른 에러는 즉시 발생
+                raise Exception(f"Gemini API error: {str(e)}")
+        
+        # 모든 키가 실패한 경우
+        raise Exception(f"Gemini API error (all keys exhausted): {str(last_error)}")
     
-    def _extract_gemini_text(self, response) -> str:
-        """Safely extract text from Gemini response"""
-        # Method 1: Try candidates first (most reliable)
+    def _extract_gemini_text_fast(self, response) -> str:
+        """Fast text extraction from Gemini response"""
+        # Method 1: Try response.text directly (fastest)
         try:
-            if hasattr(response, 'candidates') and response.candidates:
-                for candidate in response.candidates:
-                    if hasattr(candidate, 'content') and candidate.content:
-                        if hasattr(candidate.content, 'parts') and candidate.content.parts:
-                            texts = []
-                            for part in candidate.content.parts:
-                                if hasattr(part, 'text') and part.text:
-                                    texts.append(part.text)
-                            if texts:
-                                return "".join(texts)
-        except Exception as e:
-            print(f"⚠️ Error extracting from candidates: {e}")
+            return response.text
+        except:
+            pass
         
-        # Method 2: Try parts directly
+        # Method 2: Try candidates
         try:
-            if hasattr(response, 'parts') and response.parts:
-                texts = []
-                for part in response.parts:
-                    if hasattr(part, 'text') and part.text:
-                        texts.append(part.text)
-                if texts:
-                    return "".join(texts)
-        except Exception as e:
-            print(f"⚠️ Error extracting from parts: {e}")
+            if response.candidates:
+                candidate = response.candidates[0]
+                if candidate.content and candidate.content.parts:
+                    return "".join(p.text for p in candidate.content.parts if hasattr(p, 'text'))
+        except:
+            pass
         
-        # Method 3: Try text property (may raise exception internally)
+        # Method 3: Try parts
         try:
-            if hasattr(response, 'text'):
-                text = response.text
-                if text:
-                    return text
-        except Exception as e:
-            print(f"⚠️ Error extracting text property: {e}")
+            if response.parts:
+                return "".join(p.text for p in response.parts if hasattr(p, 'text'))
+        except:
+            pass
         
         return ""
+    
+    def _extract_gemini_text(self, response) -> str:
+        """Safely extract text from Gemini response (fallback)"""
+        return self._extract_gemini_text_fast(response)
     
     async def generate(self, prompt: str, provider: str = None, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -362,7 +457,13 @@ Be precise and cite specific concerns."""
 문제를 생성해주세요:"""
 
         try:
-            response = self.gemini_client.generate_content(
+            # 키 풀에서 클라이언트 가져오기
+            if self.gemini_key_pool:
+                client, _ = self.gemini_key_pool.get_client()
+            else:
+                client = self.gemini_client
+            
+            response = client.generate_content(
                 prompt,
                 generation_config={
                     "temperature": 0.7,
