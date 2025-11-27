@@ -4,7 +4,7 @@ FROM node:18-alpine AS builder
 WORKDIR /app
 
 # Build argument for API URL
-ARG NEXT_PUBLIC_API_URL=https://kpc-backend-480497851489.asia-northeast3.run.app
+ARG NEXT_PUBLIC_API_URL=https://kpc-backend-6tjoxshz5a-du.a.run.app
 
 # Set environment variable from build arg
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
