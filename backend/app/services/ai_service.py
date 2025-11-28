@@ -1,10 +1,14 @@
 import openai
 from anthropic import Anthropic
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 from app.core.config import settings
 import time
+import asyncio
 import threading
 from collections import deque
+from dataclasses import dataclass, field
+from datetime import datetime
+import uuid
 
 # Safely import google.generativeai
 try:
@@ -16,19 +20,55 @@ except ImportError as e:
     GENAI_AVAILABLE = False
 
 
+@dataclass
+class GeminiRequest:
+    """Gemini API 요청을 나타내는 클래스"""
+    id: str
+    prompt: str
+    generation_config: Dict[str, Any]
+    created_at: float = field(default_factory=time.time)
+    future: asyncio.Future = field(default=None)
+    priority: int = 0  # 낮을수록 높은 우선순위
+
+
 class GeminiKeyPool:
-    """Gemini API 키 풀링 및 Rate Limiting 관리"""
+    """Gemini API 키 풀링, Rate Limiting 및 비동기 요청 큐 관리"""
     
     def __init__(self, keys: List[str], rate_limit_per_minute: int = 15):
         self.keys = keys
         self.rate_limit = rate_limit_per_minute
         self.current_index = 0
         self.lock = threading.Lock()
+        self.async_lock = None  # asyncio.Lock은 이벤트 루프 내에서 초기화
+        
         # 각 키별 요청 타임스탬프 기록 (슬라이딩 윈도우)
         self.request_times: Dict[str, deque] = {key: deque() for key in keys}
         # 각 키별 클라이언트 캐시
         self.clients: Dict[str, Any] = {}
-        print(f"[KeyPool] Gemini Key Pool initialized with {len(keys)} key(s)")
+        # 각 키별 동시 요청 수 추적
+        self.active_requests: Dict[str, int] = {key: 0 for key in keys}
+        # 키당 최대 동시 요청 수
+        self.max_concurrent_per_key = 5
+        
+        # 요청 큐 및 워커 관련
+        self.request_queue: asyncio.Queue = None
+        self.workers_started = False
+        self.worker_count = len(keys) * 2  # 키당 2개의 워커
+        
+        # 통계
+        self.total_requests = 0
+        self.total_completed = 0
+        self.total_errors = 0
+        self.avg_response_time = 0.0
+        
+        print(f"[KeyPool] Gemini Key Pool initialized with {len(keys)} key(s), {self.worker_count} workers")
+    
+    async def _ensure_async_initialized(self):
+        """비동기 컴포넌트 초기화 확인"""
+        if self.async_lock is None:
+            self.async_lock = asyncio.Lock()
+        if self.request_queue is None:
+            self.request_queue = asyncio.Queue()
     
     def _clean_old_requests(self, key: str):
         """1분이 지난 요청 기록 제거"""
@@ -36,41 +76,56 @@ class GeminiKeyPool:
         while self.request_times[key] and current_time - self.request_times[key][0] > 60:
             self.request_times[key].popleft()
     
-    def _get_available_key(self) -> Optional[str]:
-        """Rate Limit을 고려하여 사용 가능한 키 반환"""
-        current_time = time.time()
+    def _get_best_available_key(self) -> Optional[str]:
+        """가장 여유로운 키 반환 (동시 요청 수와 Rate Limit 고려)"""
+        best_key = None
+        best_score = float('inf')
         
-        # 모든 키를 순회하며 사용 가능한 키 찾기
-        for _ in range(len(self.keys)):
-            key = self.keys[self.current_index]
-            self.current_index = (self.current_index + 1) % len(self.keys)
-            
+        for key in self.keys:
             self._clean_old_requests(key)
             
             # Rate Limit 확인
-            if len(self.request_times[key]) < self.rate_limit:
-                return key
+            rate_usage = len(self.request_times[key])
+            if rate_usage >= self.rate_limit:
+                continue
+            
+            # 동시 요청 수 확인
+            concurrent = self.active_requests[key]
+            if concurrent >= self.max_concurrent_per_key:
+                continue
+            
+            # 점수 계산 (낮을수록 좋음): rate 사용률 + 동시 요청 수
+            score = (rate_usage / self.rate_limit) + (concurrent / self.max_concurrent_per_key)
+            
+            if score < best_score:
+                best_score = score
+                best_key = key
         
         # 모든 키가 Rate Limit에 도달한 경우, 가장 여유로운 키 반환
-        min_requests = float('inf')
-        best_key = self.keys[0]
-        for key in self.keys:
-            self._clean_old_requests(key)
-            if len(self.request_times[key]) < min_requests:
-                min_requests = len(self.request_times[key])
-                best_key = key
+        if best_key is None:
+            min_score = float('inf')
+            for key in self.keys:
+                self._clean_old_requests(key)
+                concurrent = self.active_requests[key]
+                rate_usage = len(self.request_times[key])
+                score = rate_usage + concurrent
+                if score < min_score:
+                    min_score = score
+                    best_key = key
         
         return best_key
     
     def get_client(self) -> tuple:
-        """사용 가능한 키로 Gemini 클라이언트 반환"""
+        """사용 가능한 키로 Gemini 클라이언트 반환 (동기 버전)"""
         with self.lock:
-            key = self._get_available_key()
+            key = self._get_best_available_key()
             if not key:
                 raise ValueError("No available Gemini API keys")
             
             # 요청 시간 기록
             self.request_times[key].append(time.time())
+            self.active_requests[key] += 1
+            self.total_requests += 1
             
             # 클라이언트가 캐시에 없으면 생성
             if key not in self.clients:
@@ -82,12 +137,71 @@ class GeminiKeyPool:
             
             return self.clients[key], key
     
+    async def get_client_async(self) -> tuple:
+        """사용 가능한 키로 Gemini 클라이언트 반환 (비동기 버전)"""
+        await self._ensure_async_initialized()
+        
+        async with self.async_lock:
+            key = self._get_best_available_key()
+            if not key:
+                # Rate limit에 걸린 경우, 잠시 대기 후 재시도
+                await asyncio.sleep(0.5)
+                key = self._get_best_available_key()
+                if not key:
+                    raise ValueError("No available Gemini API keys")
+            
+            # 요청 시간 기록
+            self.request_times[key].append(time.time())
+            self.active_requests[key] += 1
+            self.total_requests += 1
+            
+            # 클라이언트가 캐시에 없으면 생성
+            if key not in self.clients:
+                genai.configure(api_key=key)
+                self.clients[key] = genai.GenerativeModel('models/gemini-2.5-flash-lite')
+            
+            # 해당 키로 configure 설정
+            genai.configure(api_key=key)
+            
+            return self.clients[key], key
+    
+    def release_key(self, key: str):
+        """키 사용 완료 후 해제"""
+        with self.lock:
+            if key in self.active_requests:
+                self.active_requests[key] = max(0, self.active_requests[key] - 1)
+    
+    async def release_key_async(self, key: str):
+        """키 사용 완료 후 해제 (비동기)"""
+        await self._ensure_async_initialized()
+        async with self.async_lock:
+            if key in self.active_requests:
+                self.active_requests[key] = max(0, self.active_requests[key] - 1)
+    
+    def record_completion(self, response_time: float, success: bool = True):
+        """요청 완료 기록"""
+        with self.lock:
+            if success:
+                self.total_completed += 1
+                # 이동 평균으로 응답 시간 계산
+                if self.avg_response_time == 0:
+                    self.avg_response_time = response_time
+                else:
+                    self.avg_response_time = 0.9 * self.avg_response_time + 0.1 * response_time
+            else:
+                self.total_errors += 1
+    
     def get_status(self) -> Dict[str, Any]:
         """키 풀 상태 반환"""
         with self.lock:
             status = {
                 "total_keys": len(self.keys),
                 "rate_limit_per_minute": self.rate_limit,
+                "max_concurrent_per_key": self.max_concurrent_per_key,
+                "total_requests": self.total_requests,
+                "total_completed": self.total_completed,
+                "total_errors": self.total_errors,
+                "avg_response_time_ms": round(self.avg_response_time * 1000, 2),
                 "keys_status": []
             }
             for i, key in enumerate(self.keys):
@@ -96,7 +210,9 @@ class GeminiKeyPool:
                     "key_index": i,
                     "key_preview": f"{key[:8]}...{key[-4:]}",
                     "requests_last_minute": len(self.request_times[key]),
-                    "available_requests": max(0, self.rate_limit - len(self.request_times[key]))
+                    "available_requests": max(0, self.rate_limit - len(self.request_times[key])),
+                    "active_concurrent": self.active_requests[key],
+                    "available_concurrent": max(0, self.max_concurrent_per_key - self.active_requests[key])
                 })
             return status
 
@@ -197,60 +313,109 @@ class AIService:
             raise Exception(f"Anthropic API error: {str(e)}")
     
     async def gemini(self, prompt: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Call Google Gemini API - Optimized for speed with key pooling"""
+        """Call Google Gemini API - 비동기 풀링 방식으로 최적화"""
         if not self.gemini_key_pool and not self.gemini_client:
             if not GENAI_AVAILABLE:
                 raise ValueError("google.generativeai package not available")
             raise ValueError("Gemini API key not configured")
         
-        # 최대 재시도 횟수 (키 개수만큼)
+        start_time = time.time()
         max_retries = len(self.gemini_key_pool.keys) if self.gemini_key_pool else 1
         last_error = None
+        used_key = None
         
         for attempt in range(max_retries):
             try:
-                # 키 풀에서 클라이언트 가져오기
+                # 비동기로 키 풀에서 클라이언트 가져오기
                 if self.gemini_key_pool:
-                    client, used_key = self.gemini_key_pool.get_client()
+                    client, used_key = await self.gemini_key_pool.get_client_async()
                 else:
                     client = self.gemini_client
                     used_key = "single"
                 
-                # Optimized generation config for faster response
+                # 비동기로 API 호출 (블로킹 호출을 별도 스레드에서 실행)
                 generation_config = {
                     "temperature": 0.7,
-                    "max_output_tokens": 1024,  # Limit output length for speed
+                    "max_output_tokens": 1024,
                 }
                 
-                response = client.generate_content(
-                    prompt,
-                    generation_config=generation_config
+                # ThreadPoolExecutor를 사용하여 동기 API를 비동기로 실행
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,  # 기본 executor 사용
+                    lambda: client.generate_content(
+                        prompt,
+                        generation_config=generation_config
+                    )
                 )
                 
-                # Fast text extraction - try response.text first
+                # 응답 텍스트 추출
                 response_text = self._extract_gemini_text_fast(response)
                 
                 if not response_text:
                     raise ValueError("No text content in response")
                 
+                # 성공 시 키 해제 및 통계 기록
+                response_time = time.time() - start_time
+                if self.gemini_key_pool and used_key != "single":
+                    await self.gemini_key_pool.release_key_async(used_key)
+                    self.gemini_key_pool.record_completion(response_time, success=True)
+                
                 return {
                     "response": response_text,
                     "tokens_used": (len(prompt) + len(response_text)) // 4,
                     "model": "gemini-2.5-flash-lite",
-                    "key_index": self.gemini_key_pool.keys.index(used_key) if self.gemini_key_pool and used_key != "single" else 0
+                    "key_index": self.gemini_key_pool.keys.index(used_key) if self.gemini_key_pool and used_key != "single" else 0,
+                    "response_time_ms": round(response_time * 1000, 2)
                 }
+                
             except Exception as e:
                 last_error = e
                 error_msg = str(e).lower()
+                
+                # 키 해제
+                if self.gemini_key_pool and used_key and used_key != "single":
+                    await self.gemini_key_pool.release_key_async(used_key)
+                
                 # Rate limit 또는 quota 에러인 경우 다음 키로 재시도
                 if "quota" in error_msg or "rate" in error_msg or "limit" in error_msg or "429" in error_msg:
                     print(f"[WARN] Gemini API rate limit hit (attempt {attempt + 1}/{max_retries}), trying next key...")
+                    await asyncio.sleep(0.2)  # 짧은 대기 후 재시도
                     continue
+                
                 # 다른 에러는 즉시 발생
+                if self.gemini_key_pool:
+                    self.gemini_key_pool.record_completion(0, success=False)
                 raise Exception(f"Gemini API error: {str(e)}")
         
         # 모든 키가 실패한 경우
+        if self.gemini_key_pool:
+            self.gemini_key_pool.record_completion(0, success=False)
         raise Exception(f"Gemini API error (all keys exhausted): {str(last_error)}")
+    
+    async def gemini_batch(self, prompts: List[str], context: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """여러 프롬프트를 병렬로 처리 (배치 처리)"""
+        if not prompts:
+            return []
+        
+        # 모든 프롬프트를 동시에 처리
+        tasks = [self.gemini(prompt, context) for prompt in prompts]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 결과 처리
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                processed_results.append({
+                    "response": f"Error: {str(result)}",
+                    "tokens_used": 0,
+                    "model": "gemini-2.5-flash-lite",
+                    "error": True
+                })
+            else:
+                processed_results.append(result)
+        
+        return processed_results
     
     def _extract_gemini_text_fast(self, response) -> str:
         """Fast text extraction from Gemini response"""
@@ -457,21 +622,31 @@ Be precise and cite specific concerns."""
 문제를 생성해주세요:"""
 
         try:
-            # 키 풀에서 클라이언트 가져오기
+            # 비동기로 키 풀에서 클라이언트 가져오기
+            used_key = None
             if self.gemini_key_pool:
-                client, _ = self.gemini_key_pool.get_client()
+                client, used_key = await self.gemini_key_pool.get_client_async()
             else:
                 client = self.gemini_client
             
-            response = client.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": 0.7,
-                    "top_p": 0.8,
-                    "top_k": 40,
-                    "max_output_tokens": 4000,  # 시나리오, 참고자료, 평가기준 포함으로 토큰 수 증가
-                }
+            # ThreadPoolExecutor를 사용하여 동기 API를 비동기로 실행
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: client.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": 0.7,
+                        "top_p": 0.8,
+                        "top_k": 40,
+                        "max_output_tokens": 4000,
+                    }
+                )
             )
+            
+            # 키 해제
+            if self.gemini_key_pool and used_key:
+                await self.gemini_key_pool.release_key_async(used_key)
             
             # Parse JSON response
             import json
@@ -536,10 +711,11 @@ Be precise and cite specific concerns."""
             }
             
         except Exception as e:
+            # 키 해제
+            if self.gemini_key_pool and used_key:
+                await self.gemini_key_pool.release_key_async(used_key)
             raise Exception(f"Failed to generate question: {str(e)}")
 
 
 # Create singleton instance
 ai_service = AIService()
-
-
